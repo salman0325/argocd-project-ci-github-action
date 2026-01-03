@@ -163,7 +163,7 @@ jobs:
       - name: Checkout CD repo
         uses: actions/checkout@v4
         with:
-          repository: jaiswaladi246/3-Tier-GitOps-CD
+          repository: salman0325/argocd-project-cd.git
           ref: main
           token: ${{ secrets.CD_REPO_TOKEN }}
           path: cd
@@ -200,7 +200,7 @@ jobs:
       - name: Commit & push to CD repo
         working-directory: cd
         run: |
-          git config user.name "ci-bot"
+          git config --global user.name "cloudchamp0325@gmail.com"
           git config user.email "cloudchamp0325@gmail.com"
           git add -A
           git commit -m "bump images to ${IMAGE_TAG}" || echo "no changes"
