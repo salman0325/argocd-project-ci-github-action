@@ -104,26 +104,44 @@ jobs:
     runs-on: ubuntu-latest
     needs: trivy_image_scan
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout CD repo
+        uses: actions/checkout@v4
         with:
           repository: salman0325/argocd-project-cd.git
+          ref: main
           token: ${{ secrets.CD_REPO_TOKEN1 }}
           path: cd
 
-      - name: Update image tags
+      - name: Bump images in manifests (safe)
         working-directory: cd
+        env:
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
         run: |
+          curl -sL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o yq && sudo install yq /usr/local/bin/yq
+          # -- Safety cleanup: remove any accidental .spec.template from Service docs
+          yq -i '(. | select(.kind=="Service")) |= del(.spec.template)' k8s-prod/backend.yaml
+          yq -i '(. | select(.kind=="Service")) |= del(.spec.template)' k8s-prod/frontend.yaml
+          # -- Update ONLY Deployment images (backend)
           yq -i '
             (. | select(.kind=="Deployment")
-            | .spec.template.spec.containers[].image)
-            = "salmandevops290/argocd-k8s-backend:${{ env.IMAGE_TAG }}"
+               | .spec.template.spec.containers[]
+               | select(.name=="argocd-k8s-backend")
+               | .image)
+            = "salmandevops290/argocd-k8s-backend:" + strenv(IMAGE_TAG)
           ' k8s-prod/backend.yaml
-
-      - name: Commit & push
+          # -- Update ONLY Deployment images (frontend)
+          yq -i '
+            (. | select(.kind=="Deployment")
+               | .spec.template.spec.containers[]
+               | select(.name=="argocd-k8s-frontend")
+               | .image)
+            = "salmandevops290/argocd-k8s-frontend:" + strenv(IMAGE_TAG)
+          ' k8s-prod/frontend.yaml
+      - name: Commit & push to CD repo
         working-directory: cd
         run: |
-          git config user.name "cloudchamp0325"
+          git config --global user.name "cloudchamp0325@gmail.com"
           git config user.email "cloudchamp0325@gmail.com"
           git add -A
-          git commit -m "bump images to $IMAGE_TAG"
-          git push
+          git commit -m "bump images to ${IMAGE_TAG}" || echo "no changes"
+          git push 
