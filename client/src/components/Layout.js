@@ -16,7 +16,7 @@ function Layout({ children }) {
           </div>
         </div>
       </header>
-      <AnimatedBanner message="Welcome to DevOps Shack 🚀" />
+      <AnimatedBanner message="Welcome to DevOps 🚀" />
       <div className="app-body">
         <aside className="sidebar slide-in-left">
           <h3>Connect</h3>
