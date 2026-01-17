@@ -2,88 +2,91 @@ name: Node.js CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main ]   # Jab main branch me push ho to ye workflow trigger hoga
   pull_request:
-    branches: [ main ]
+    branches: [ main ]   # Jab main branch pe PR banega tab bhi workflow trigger hoga
 
 permissions:
-  contents: write
+  contents: write   # GitHub token ko repo contents pe write permission di gayi hai
 
 env:
-  IMAGE_TAG: ${{ github.sha }}
+  IMAGE_TAG: ${{ github.sha }}  # Image tag ke liye unique git commit SHA use hoga
 
 jobs:
   compile:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Job latest Ubuntu runner pe chalega
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4   # Code checkout karta hai repo se
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4  # Node.js version 23 install karta hai
         with:
           node-version: '23'
 
       - name: Frontend Compilation
         run: |
           cd client
-          find . -name "*.js" -exec node --check {} +
+          find . -name "*.js" -exec node --check {} +  
+          # frontend JS files syntax check karta hai bina run kiye
 
       - name: Backend Compilation
         run: |
           cd api
-          find . -name "*.js" -exec node --check {} +
+          find . -name "*.js" -exec node --check {} +  
+          # backend JS files syntax check karta hai bina run kiye
 
   gitleaks-scan:
     runs-on: ubuntu-latest
-    needs: compile
+    needs: compile   # compile job ke baad chalega
     steps:
-      - uses: actions/checkout@v4
-      - uses: gitleaks/gitleaks-action@v2
+      - uses: actions/checkout@v4  # Code dobara checkout karta hai
+      - uses: gitleaks/gitleaks-action@v2  # Gitleaks tool se secrets scan karta hai repo me
       - run: |
           gitleaks detect --source ./client --exit-code 1
           gitleaks detect --source ./api --exit-code 1
+          # Client aur API folders me secrets ya sensitive info detect kar ke fail kar deta hai agar mile
 
   trivy_fs_scan:
     runs-on: ubuntu-latest
-    needs: gitleaks-scan
+    needs: gitleaks-scan  # gitleaks-scan ke baad chalega
     steps:
-      - uses: actions/checkout@v4
-      - uses: aquasecurity/trivy-action@0.28.0
+      - uses: actions/checkout@v4  # Code checkout karta hai
+      - uses: aquasecurity/trivy-action@0.28.0  # Trivy tool se filesystem vulnerability scan karta hai
         with:
-          scan-type: fs
-          scan-ref: .
-          severity: CRITICAL,HIGH
+          scan-type: fs  # file system scan mode
+          scan-ref: .    # current directory scan karega
+          severity: CRITICAL,HIGH  # sirf high aur critical vulnerabilities report karega
 
   build_backend_docker_image_and_push:
     runs-on: ubuntu-latest
-    needs: trivy_fs_scan
+    needs: trivy_fs_scan  # Trivy scan ke successful baad chalega
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@v4  # Code dobara checkout
+      - uses: docker/login-action@v3  # DockerHub me login karne ke liye action
         with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ vars.DOCKERHUB_USERNAME }}  # DockerHub username GitHub variable se leta hai
+          password: ${{ secrets.DOCKERHUB_TOKEN }}  # DockerHub token GitHub secrets se secure leta hai
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v6  # Docker backend image build aur push karta hai
         with:
-          context: ./api
-          push: true
+          context: ./api  # Docker build context backend folder
+          push: true     # build ke baad image push karna hai DockerHub pe
           tags: |
-            salmandevops290/argocd-k8s-backend:latest
-            salmandevops290/argocd-k8s-backend:${{ env.IMAGE_TAG }}
+            salmandevops290/argocd-k8s-backend:latest  # latest tag ke sath
+            salmandevops290/argocd-k8s-backend:${{ env.IMAGE_TAG }}  # specific git commit SHA tag ke sath
 
   build_frontend_docker_image_and_push:
     runs-on: ubuntu-latest
-    needs: trivy_fs_scan
+    needs: trivy_fs_scan  # Trivy scan ke baad chalega
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/login-action@v3
+      - uses: actions/checkout@v4  # Code checkout
+      - uses: docker/login-action@v3  # DockerHub login
         with:
-          username: ${{ vars.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          username: ${{ vars.DOCKERHUB_USERNAME }}  # Username
+          password: ${{ secrets.DOCKERHUB_TOKEN }}  # Token
 
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v6  # Docker frontend image build aur push karta hai
         with:
-          context: ./client
+          context: ./client  # frontend code context
           push: true
           tags: |
             salmandevops290/argocd-k8s-frontend:latest
@@ -95,33 +98,36 @@ jobs:
       - build_backend_docker_image_and_push
       - build_frontend_docker_image_and_push
     steps:
-      - uses: aquasecurity/trivy-action@0.28.0
+      - uses: aquasecurity/trivy-action@0.28.0  # Trivy se Docker images ka vulnerability scan karta hai
         with:
-          scan-type: image
-          image-ref: salmandevops290/argocd-k8s-backend:${{ env.IMAGE_TAG }}
+          scan-type: image  # scan Docker image
+          image-ref: salmandevops290/argocd-k8s-backend:${{ env.IMAGE_TAG }}  # backend image scan
 
   update_cd_repo:
    runs-on: ubuntu-latest
-   needs: trivy_image_scan
+   needs: trivy_image_scan  # Image scan ke baad chalega
    env:
-    IMAGE_TAG: ${{ github.sha }}   # <-- unique SHA per build
+    IMAGE_TAG: ${{ github.sha }}   # current commit SHA tag
+
    steps:
     - name: Checkout CD repo
-      uses: actions/checkout@v4
+      uses: actions/checkout@v4  # Continuous Deployment (CD) repo ko checkout karta hai
       with:
-        repository: salman0325/argocd-project-cd.git
-        ref: main
-        token: ${{ secrets.CD_REPO_TOKEN1 }}
-        path: cd
+        repository: salman0325/argocd-project-cd.git  # CD repo URL
+        ref: main  # main branch
+        token: ${{ secrets.CD_REPO_TOKEN1 }}  # secure token to push changes
+        path: cd  # local directory name
 
     - name: Bump images in manifests (safe)
-      working-directory: cd
+      working-directory: cd  # cd directory me kaam karega
       run: |
-        curl -sL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o yq && sudo install yq /usr/local/bin/yq
-        
+        curl -sL https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64 -o yq && sudo install yq /usr/local/bin/yq  
+        # yq tool install karta hai jo YAML files ko edit karne ke liye use hota hai
+
         # Safety cleanup: remove accidental .spec.template from Service docs
         yq -i '(. | select(.kind=="Service")) |= del(.spec.template)' k8s-prod/backend.yaml
-        yq -i '(. | select(.kind=="Service")) |= del(.spec.template)' k8s-prod/frontend.yaml
+        yq -i '(. | select(.kind=="Service")) |= del(.spec.template)' k8s-prod/frontend.yaml  
+        # Kubernetes Service manifests me galat fields delete karta hai taake errors na aayein
 
         # Update Deployment images (backend)
         yq -i '
@@ -129,7 +135,8 @@ jobs:
              | .spec.template.spec.containers[]
              | select(.name=="backend")
              | .image) = "salmandevops290/argocd-k8s-backend:" + strenv(IMAGE_TAG)
-        ' k8s-prod/backend.yaml
+        ' k8s-prod/backend.yaml  
+        # Backend deployment YAML me container image tag update karta hai to latest commit SHA
 
         # Update Deployment images (frontend)
         yq -i '
@@ -137,13 +144,14 @@ jobs:
              | .spec.template.spec.containers[]
              | select(.name=="frontend")
              | .image) = "salmandevops290/argocd-k8s-frontend:" + strenv(IMAGE_TAG)
-        ' k8s-prod/frontend.yaml
+        ' k8s-prod/frontend.yaml  
+        # Frontend deployment YAML me bhi same update karta hai
 
     - name: Commit & push to CD repo
       working-directory: cd
       run: |
-        git config user.name "cloudchamp0325"
-        git config user.email "cloudchamp0325@gmail.com"
-        git add -A
-        git commit -m "bump images to ${IMAGE_TAG}" || echo "no changes"
-        git push
+        git config user.name "cloudchamp0325"  # Git user name set karta hai commit ke liye
+        git config user.email "cloudchamp0325@gmail.com"  # Git user email set karta hai
+        git add -A  # saari changes stage karta hai
+        git commit -m "bump images to ${IMAGE_TAG}" || echo "no changes"  # commit message ke sath commit karta hai, agar changes nahi to ignore karta hai
+        git push  # changes remote repo pe push karta hai
