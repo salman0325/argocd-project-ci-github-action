@@ -1,3 +1,4 @@
+```yaml
   update_cd_repo_image_tag:
     runs-on: ubuntu-latest
     needs: build_backend_docker_image_and_push  # aapke image build job ke baad chale
@@ -25,3 +26,4 @@
           git add frontend/deployment.yaml backend/deployment.yaml
           git commit -m "Update frontend and backend image tags to ${{ env.IMAGE_TAG }}"
           git push
+```
