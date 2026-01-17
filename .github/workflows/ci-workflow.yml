@@ -102,7 +102,10 @@ jobs:
         with:
           scan-type: image  # scan Docker image
           image-ref: salmandevops290/argocd-k8s-backend:${{ env.IMAGE_TAG }}  # backend image scan
-
+      - uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: image
+          image-ref: salmandevops290/argocd-k8s-frontend:${{ env.IMAGE_TAG }}
   update_cd_repo:
    runs-on: ubuntu-latest
    needs: trivy_image_scan  # Image scan ke baad chalega
