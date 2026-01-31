@@ -327,8 +327,52 @@ spec:
       prune: true
       selfHeal: true
 ```
+```yml
+apiVersion: argoproj.io/v1alpha1        # Argo CD ka API version
+kind: Application                      # Resource type: Argo CD Application
 
----
+metadata:
+  name: prod-my-app                    # Production application ka naam
+  namespace: argocd                    # Argo CD ka namespace (important)
+
+spec:
+  project: default                     # Argo CD project (production mein alag bhi ho sakta)
+
+  source:
+    repoURL: https://github.com/org/gitops-repo.git   # Git repo jahan k8s configs hain
+    targetRevision: main               # Stable branch (prod mein main / release)
+    path: k8s/prod                     # Production specific folder
+    directory:
+      recurse: true                    # Sub-folders ke YAML bhi read karo
+
+  destination:
+    server: https://kubernetes.default.svc  # Same cluster jahan Argo CD install hai
+    namespace: prod                    # Production namespace
+
+  syncPolicy:
+    automated:
+      prune: true                      # Git se delete ho → cluster se bhi delete
+      selfHeal: true                   # Manual change ho → wapas Git wali state
+    syncOptions:
+      - CreateNamespace=true           # Namespace exist na ho to auto create
+      - PruneLast=true                 # Pehle deploy, baad mein delete (safe)
+      - ApplyOutOfSyncOnly=true        # Sirf changed resources apply karo
+
+  revisionHistoryLimit: 10             # Last 10 deployments ka record rakho
+
+  ignoreDifferences:                   # Kuch fields ko ignore karo (prod safety)
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas               # Replicas manual scale ho sakte hain
+
+  info:
+    - name: environment
+      value: production                # Just info ke liye (UI mein dikhta hai)
+```
+
+---yml
+```yml
 name: SonarQube Scan
 
 on:
@@ -350,9 +394,11 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
+          ```
+```
 HOW TO USE TRIVY With github action
 
-
+```yml
 name: Trivy Scan
 
 on:
@@ -375,9 +421,11 @@ jobs:
         with:
           image-ref: my-app
           severity: HIGH,CRITICAL
+```
+
 
 and how to use owasp 
-
+```yml
 name: OWASP Dependency Scan
 
 on:
@@ -398,6 +446,7 @@ jobs:
           project: my-app
           path: .
           format: HTML
+```
 
 
 ## Final Interview One-Liner (Very Important)
